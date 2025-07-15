@@ -1,6 +1,8 @@
 import re
 import serial.tools.list_ports
+
 from typing import Optional, List, Dict, Tuple, Pattern, Any
+
 from project.station.logging.station_logger import logger
 from project.station.config.port_finder.port_finder_config import PortFinderConfig
 from project.station.utils.port_finder_utils import verify_port, get_port_info, is_virtual_port
