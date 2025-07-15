@@ -12,12 +12,18 @@ class PortFinder:
 
     Пример использования:
     >>> finder = PortFinder()
-    >>> # Поиск с использованием кеша
-    >>> port = finder.find_station_port()
-    >>> # Принудительный поиск нового порта
-    >>> port = finder.find_station_port(use_cached=False)
-    >>> # Очистка кеша
-    >>> finder.clear_cache()
+    >>> # Поиск с использованием кеша (результат проверяем)
+    >>> found_port = finder.find_station_port()
+    >>> found_port is None or isinstance(found_port, str)
+    True
+    >>> # Принудительный поиск нового порта с проверкой
+    >>> new_port = finder.find_station_port(use_cached=False)
+    >>> new_port is None or isinstance(new_port, str)
+    True
+    >>> # Очистка кеша с проверкой результата
+    >>> cache_cleared = finder.clear_cache()
+    >>> isinstance(cache_cleared, bool)
+    True
     """
 
     KNOWN_DEVICES: Dict[Tuple[int, int], str] = {
