@@ -10,11 +10,18 @@ def verify_port(port_name: str) -> bool:
     """
     Проверяет доступность последовательного порта и его соответствие критериям.
 
-    Args:
-        port_name: Имя порта для проверки (например, 'COM3').
+    Примеры:
+    >>> # Проверка существующего порта
+    >>> verify_port('COM3')  # Должен вернуть True для существующего порта
+    True
 
-    Returns:
-        bool: True если порт существует и доступен, False в противном случае.
+    >>> # Проверка несуществующего порта
+    >>> verify_port('NOT_EXIST')  # Всегда False для несуществующих портов
+    False
+
+    >>> # Проверка с ошибкой (передаем None вместо строки)
+    >>> verify_port(None)  # Обрабатывается исключение, возвращается False
+    False
     """
     try:
         logger.debug("Проверка доступности порта: %s", port_name)
@@ -42,11 +49,21 @@ def get_port_info(port: Any) -> Dict[str, Union[str, int, None]]:
     """
     Собирает подробную информацию о последовательном порте.
 
-    Args:
-        port: Объект порта из serial.tools.list_ports.comports().
+    Примеры:
+    >>> # Получение информации о существующем порте
+    >>> ports = serial.tools.list_ports.comports()
+    >>> if ports:
+    ...     port_info = get_port_info(ports[0])
+    ...     isinstance(port_info, dict) and 'device' in port_info
+    True
 
-    Returns:
-        Dict: Словарь с информацией о порте.
+    >>> # Передача None
+    >>> get_port_info(None)  # Возвращает пустой словарь
+    {}
+
+    >>> # Передача объекта без атрибутов порта
+    >>> get_port_info(object())  # Возвращает словарь с None значениями
+    {'device': None, ...}
     """
     try:
         logger.debug("Получение информации о порте: %s", port.device if port else 'None')
@@ -81,11 +98,21 @@ def is_virtual_port(port: Any) -> bool:
     """
     Определяет, является ли порт виртуальным, на основе его описания.
 
-    Args:
-        port: Объект порта из serial.tools.list_ports.comports().
+    Примеры:
+    >>> # Тест с виртуальным портом
+    >>> virtual_port = type('obj', (), {'device': 'COM1', 'description': 'Virtual COM Port'})
+    >>> is_virtual_port(virtual_port)
+    True
 
-    Returns:
-        bool: True если порт считается виртуальным.
+    >>> # Тест с физическим портом
+    >>> phys_port = type('obj', (), {'device': 'COM2', 'description': 'USB Serial Device'})
+    >>> is_virtual_port(phys_port)
+    False
+
+    >>> # Порт без описания
+    >>> no_desc_port = type('obj', (), {'device': 'COM3'})
+    >>> is_virtual_port(no_desc_port)
+    False
     """
     try:
         if not port:
