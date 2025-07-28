@@ -1,3 +1,5 @@
+import time
+
 import serial.tools.list_ports
 
 from time import sleep
@@ -10,9 +12,9 @@ from project.station.utils.port_finder_utils import get_port_info
 from project.station.config.port_finder.port_finder_config import PortFinderConfig
 
 
-class StationConnection:
+class Station:
     """
-    Класс для управления подключением к станции с автоматическим определением порта.
+    Класс для управления станцией.
 
     Обеспечивает:
     - Автоматический поиск и валидацию порта станции
@@ -42,12 +44,12 @@ class StationConnection:
 
         Examples:
             >>> # Инициализация с параметрами по умолчанию
-            >>> conn = StationConnection()
+            >>> conn = Station()
             >>> print(conn.baudrate)
             115200
 
             >>> # Инициализация с кастомными параметрами
-            >>> custom_conn = StationConnection(baudrate=9600, timeout=2.0, max_retries=5)
+            >>> custom_conn = Station(baudrate=9600, timeout=2.0, max_retries=5)
             >>> print(custom_conn.timeout)
             2.0
         """
@@ -60,9 +62,9 @@ class StationConnection:
         self.port = self._get_valid_port()
 
         if self.port:
-            logger.info("Инициализирован StationConnection для порта %s", self.port)
+            logger.info("Инициализирован Station для порта %s", self.port)
         else:
-            logger.warning("Инициализирован StationConnection без указания порта")
+            logger.warning("Инициализирован Station без указания порта")
 
     def _get_valid_port(self) -> Optional[str]:
         """
@@ -77,13 +79,13 @@ class StationConnection:
 
         Examples:
             >>> # Когда сохраненный порт доступен
-            >>> conn = StationConnection()
+            >>> conn = Station()
             >>> _ = conn.config.save_port({'device': 'COM3'})
             >>> port = conn._get_valid_port()
             >>> print(port)  # 'COM3' если порт доступен
 
             >>> # Когда порт нужно искать заново
-            >>> new_conn = StationConnection()
+            >>> new_conn = Station()
             >>> new_conn.config.clear_config()
             >>> port = new_conn._get_valid_port()
             >>> print(port)  # Найденный порт или None
@@ -117,7 +119,7 @@ class StationConnection:
             bool: True если порт доступен, False в случае ошибки.
 
         Examples:
-            >>> conn = StationConnection()
+            >>> conn = Station()
             >>> # Проверка доступного порта (зависит от системы)
             >>> conn._verify_port_available('COM1')  # True или False
             >>> # Проверка несуществующего порта
@@ -147,14 +149,14 @@ class StationConnection:
             SerialException: При критических ошибках работы с портом.
 
         Examples:
-            >>> conn = StationConnection()
+            >>> conn = Station()
             >>> # Успешное подключение
             >>> if conn.connect():
             ...     print("Подключение установлено")
             ...     conn.disconnect()
             ...
             >>> # Неудачное подключение (с автоматическими ретраями)
-            >>> bad_conn = StationConnection(max_retries=2)
+            >>> bad_conn = Station(max_retries=2)
             >>> bad_conn.port = "NOT_EXIST"
             >>> bad_conn.connect()  # False после 3 попыток
         """
@@ -198,7 +200,7 @@ class StationConnection:
             Optional[str]: Имя нового порта или None, если порт не найден.
 
         Examples:
-            >>> conn = StationConnection()
+            >>> conn = Station()
             >>> # Внутренний метод, обычно вызывается автоматически
             >>> new_port = conn._find_new_port()
             >>> print(new_port)  # Имя порта или None
@@ -222,7 +224,7 @@ class StationConnection:
             bool: True если отключение прошло успешно, False в случае ошибки.
 
         Examples:
-            >>> conn = StationConnection()
+            >>> conn = Station()
             >>> conn.connect()
             >>> if conn.disconnect():
             ...     print("Отключение успешно")
@@ -252,7 +254,7 @@ class StationConnection:
             bool: True если подключение активно и работает, False в противном случае.
 
         Examples:
-            >>> conn = StationConnection()
+            >>> conn = Station()
             >>> conn.connect()
             >>> print(conn.is_connected())  # True
             >>> conn.disconnect()
@@ -271,7 +273,7 @@ class StationConnection:
             bool: True если команда отправлена успешно, False в случае ошибки.
 
         Examples:
-            >>> conn = StationConnection()
+            >>> conn = Station()
             >>> conn.connect()
             >>> # Успешная отправка команды
             >>> conn.send_command("GET_STATUS")
@@ -307,7 +309,7 @@ class StationConnection:
             Optional[str]: Прочитанный ответ или None в случае ошибки.
 
         Examples:
-            >>> conn = StationConnection()
+            >>> conn = Station()
             >>> conn.connect()
             >>> conn.send_command("GET_STATUS")
             >>> # Чтение с таймаутом 2 секунды
@@ -334,15 +336,225 @@ class StationConnection:
             if timeout is not None:
                 self.connection.timeout = original_timeout
 
+    def move_to_home(self) -> bool:
+        """
+        Отправляет команду перемещения в домашнее положение (калибровки).
+
+        Выполняет подключение (если не установлено) и отправляет команду '$H',
+        которая является стандартной командой Homing в GRBL.
+
+        Returns:
+            bool: True если команда отправлена успешно, False в случае ошибки.
+
+        Raises:
+            SerialException: При критических ошибках работы с портом.
+
+        Examples:
+            >>> # Инициализация и перемещение в домашнее положение
+            >>> station = Station()
+            >>> if station.move_to_home():
+            ...     print("Команда калибровки отправлена успешно")
+            ...     # Ожидание завершения калибровки (зависит от станции)
+            ...     sleep(10)
+            ... else:
+            ...     print("Ошибка отправки команды калибровки")
+
+            >>> # Пример с контекстным менеджером
+            >>> with Station() as station:
+            ...     station.move_to_home()
+            ...     response = station.read_response()
+            ...     print("Ответ станции:", response)
+        """
+        if not self.connect():
+            logger.error("Не удалось установить соединение для команды калибровки")
+            return False
+
+        try:
+            logger.info("Отправка команды калибровки на порт %s", self.port)
+            success = self.send_command("$H")
+            if not success:
+                logger.error("Не удалось отправить команду калибровки")
+                return False
+
+            logger.info("Команда калибровки успешно отправлена")
+
+            response = None
+            logger.debug("Ожидание подтверждения выполнения команды...")
+            while response != "ok":
+                response = self.read_response()
+                time.sleep(1)
+
+            logger.info("Устройство подтвердило выполнение команды калибровки")
+            return True
+
+        except Exception as e:
+            logger.error("Ошибка при ожидании подтверждения калибровки: %s", str(e))
+            return False
+
+    def move_to_coordinates(self, x: float = None, y: float = None, z: float = None, feed_rate: int = 1000) -> bool:
+        """
+        Отправляет команду перемещения к указанным координатам.
+
+        Формирует G-code команду перемещения в абсолютных координатах (G90).
+        Пропускает оси для которых не указаны значения.
+
+        Args:
+            x: Координата по оси X (опционально)
+            y: Координата по оси Y (опционально)
+            z: Координата по оси Z (опционально)
+            feed_rate: Скорость подачи (F параметр), по умолчанию 1000 мм/мин
+
+        Returns:
+            bool: True если команда отправлена успешно, False в случае ошибки
+
+        Examples:
+            >>> station = Station()
+            >>> # Перемещение по одной оси
+            >>> station.move_to_coordinates(x=10.5)
+            >>> # Перемещение по нескольким осям
+            >>> station.move_to_coordinates(x=100, y=50.5, z=5.0, feed_rate=500)
+        """
+        if not self.connect():
+            logger.error("Не удалось установить соединение для перемещения")
+            return False
+
+        # Получаем текущие координаты (предполагаем, что есть такой метод)
+        current_pos = self.get_current_position()
+        if current_pos is None:
+            logger.error("Не удалось получить текущие координаты")
+            return False
+
+        # Рассчитываем расстояния для каждой оси
+        distances = []
+        if x is not None:
+            distances.append(abs(x - current_pos.get('x', 0)))
+        if y is not None:
+            distances.append(abs(y - current_pos.get('y', 0)))
+        if z is not None:
+            distances.append(abs(z - current_pos.get('z', 0)))
+
+        # Находим максимальное расстояние (линейное перемещение по всем осям одновременно)
+        move_distance = max(distances) if distances else 0
+
+        # Рассчитываем ориентировочное время перемещения (в секундах)
+        if feed_rate > 0:
+            move_time = (move_distance / feed_rate) * 60  # Переводим мм/мин в мм/сек
+        else:
+            move_time = 0
+
+        # Формируем команду G-code
+        command_parts = ["G90", "G0"]  # Абсолютные координаты и линейное перемещение
+
+        if x is not None:
+            command_parts.append(f"X{x:.3f}")
+        if y is not None:
+            command_parts.append(f"Y{y:.3f}")
+        if z is not None:
+            command_parts.append(f"Z{z:.3f}")
+
+        command_parts.append(f"F{feed_rate}")
+        gcode_command = " ".join(command_parts)
+
+        try:
+            logger.info("Отправка команды перемещения: %s", gcode_command)
+            logger.debug("Ожидаемое время перемещения: %.2f сек", move_time)
+
+            success = self.send_command(gcode_command)
+            if not success:
+                logger.error("Не удалось отправить команду перемещения")
+                return False
+
+            # Ожидаем подтверждения выполнения
+            logger.debug("Ожидание подтверждения завершения перемещения...")
+            start_time = time.time()
+
+            while True:
+                self.send_command("?")  # Запрос статуса
+                status = self.read_response(timeout=1.0)
+
+                if status and ("Idle" in status or "ok" in status):
+                    break
+
+                # Проверяем, не прошло ли уже расчетное время
+                elapsed = time.time() - start_time
+                if elapsed > move_time + 5:  # Добавляем 5 сек на всякий случай
+                    logger.warning("Превышено ожидаемое время перемещения")
+                    break
+
+                time.sleep(0.5)
+
+            # Добавляем задержку перед завершением, если перемещение было быстрым
+            elapsed = time.time() - start_time
+            if elapsed < move_time:
+                remaining_delay = move_time - elapsed
+                logger.debug("Добавляем задержку %.2f сек для завершения перемещения", remaining_delay)
+                time.sleep(remaining_delay)
+
+            logger.info("Перемещение к координатам выполнено успешно")
+            return True
+
+        except Exception as e:
+            logger.error("Ошибка при перемещении: %s", str(e))
+            return False
+
+    def get_current_position(self) -> Optional[dict]:
+        """
+        Получает текущие координаты станции, отправляя команду '?' (статус запрос).
+
+        Returns:
+            Optional[dict]: Словарь с текущими координатами вида {'x': float, 'y': float, 'z': float},
+                           или None в случае ошибки.
+
+        Examples:
+            >>> station = Station()
+            >>> station.connect()
+            >>> pos = station.get_current_position()
+            >>> print(pos)  # {'x': 10.5, 'y': 0.0, 'z': 5.2} или None
+        """
+        if not self.connect():
+            logger.error("Не удалось установить соединение для получения координат")
+            return None
+
+        try:
+            # Отправляем запрос статуса
+            self.send_command("?")
+            response = self.read_response(timeout=1.0)
+
+            if not response:
+                logger.error("Не получен ответ на запрос статуса")
+                return None
+
+            # Парсим ответ (пример: "<Idle|MPos:100.000,50.000,0.000|FS:0,0>")
+            if "MPos:" in response:
+                mpos_part = response.split("MPos:")[1].split("|")[0]
+                coordinates = mpos_part.split(",")
+
+                if len(coordinates) >= 3:
+                    return {
+                        'x': float(coordinates[0]),
+                        'y': float(coordinates[1]),
+                        'z': float(coordinates[2])
+                    }
+
+            logger.warning("Не удалось распарсить координаты из ответа: %s", response)
+            return None
+
+        except (ValueError, IndexError) as e:
+            logger.error("Ошибка парсинга координат: %s", str(e))
+            return None
+        except Exception as e:
+            logger.error("Ошибка при получении координат: %s", str(e))
+            return None
+
     def __enter__(self):
         """
         Поддержка контекстного менеджера для использования с 'with'.
 
         Returns:
-            StationConnection: Текущий экземпляр соединения.
+            Station: Текущий экземпляр соединения.
 
         Examples:
-            >>> with StationConnection() as conn:
+            >>> with Station() as conn:
             ...     conn.send_command("PING")
             ...     response = conn.read_response()
             ...     print(response)

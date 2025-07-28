@@ -21,7 +21,7 @@ class PortFinderConfig:
         config_path (Path): Полный путь к файлу конфигурации.
     """
 
-    CONFIG_DIR = "project/station/config/port_finder"
+    CONFIG_DIR = "station/config/port_finder"
     CONFIG_FILE = "port_finder.json"
 
     def __init__(

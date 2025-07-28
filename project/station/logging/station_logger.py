@@ -26,7 +26,7 @@ class LoggerConfig:
         DATE_FORMAT: Формат даты/времени в логах
         BACKUP_COUNT: Количество сохраняемых архивных лог-файлов
     """
-    LOG_DIR: Final[str] = 'project/station/logging'
+    LOG_DIR: Final[str] = 'station/logging'
     LOG_FILE: Final[str] = 'station.log'
     LOG_LEVEL: Final[int] = logging.DEBUG
     MAX_BYTES: Final[int] = 5 * 1024 * 1024
