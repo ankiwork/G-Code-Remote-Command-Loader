@@ -438,7 +438,7 @@ class Station:
 
         # Рассчитываем ориентировочное время перемещения (в секундах)
         if feed_rate > 0:
-            move_time = (move_distance / feed_rate) * 60  # Переводим мм/мин в мм/сек
+            move_time = (move_distance / feed_rate) * 40  # Переводим мм/мин в мм/сек
         else:
             move_time = 0
 
